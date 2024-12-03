@@ -1,9 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 )
 
 func check(e error) {
@@ -13,13 +14,31 @@ func check(e error) {
 }
 
 func main() {
-	file, err := os.Open("input.txt")
+	contents, err := os.ReadFile("input.txt")
 	check(err)
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Println(line)
+	p := regexp.MustCompile(`do\(\)|don't\(\)|mul\((\d+),(\d+)\)`)
+	sum := 0
+	sumEnabled := 0
+	en := true
+	for _, match := range p.FindAllStringSubmatch(string(contents), -1) {
+		if match[0] == "do()" {
+			en = true
+		} else if match[0] == "don't()" {
+			en = false
+		} else {
+			val0, err := strconv.Atoi(match[1])
+			check(err)
+			val1, err := strconv.Atoi(match[2])
+			check(err)
+			sum += val0 * val1
+			if en {
+				sumEnabled += val0 * val1
+			}
+		}
+
 	}
+
+	fmt.Println(sum)
+	fmt.Println(sumEnabled)
 }
