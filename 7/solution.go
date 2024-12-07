@@ -35,7 +35,7 @@ func catNum(a int64, b int64) int64 {
 	return a + b
 }
 
-func solve(testVal int64, curVal int64, numbers []int64) bool {
+func solve(testVal int64, curVal int64, numbers []int64, enableCat bool) bool {
 	if len(numbers) == 0 {
 		return curVal == testVal
 	}
@@ -44,7 +44,11 @@ func solve(testVal int64, curVal int64, numbers []int64) bool {
 		return false
 	}
 
-	return solve(testVal, curVal+numbers[0], numbers[1:]) || solve(testVal, curVal*numbers[0], numbers[1:]) || solve(testVal, catNum(curVal, numbers[0]), numbers[1:])
+	if enableCat && solve(testVal, catNum(curVal, numbers[0]), numbers[1:], true) {
+		return true
+	}
+
+	return solve(testVal, curVal+numbers[0], numbers[1:], enableCat) || solve(testVal, curVal*numbers[0], numbers[1:], enableCat)
 }
 
 func main() {
@@ -54,6 +58,7 @@ func main() {
 
 	scanner := bufio.NewScanner(file)
 	part1 := int64(0)
+	part2 := int64(0)
 	for scanner.Scan() {
 		line := scanner.Text()
 		fields := strings.Fields(line)
@@ -68,10 +73,14 @@ func main() {
 			numbers = append(numbers, int64(num))
 		}
 
-		if solve(testVal, numbers[0], numbers[1:]) {
+		if solve(testVal, numbers[0], numbers[1:], false) {
 			part1 += testVal
+			part2 += testVal
+		} else if solve(testVal, numbers[0], numbers[1:], true) {
+			part2 += testVal
 		}
 	}
 
 	fmt.Println(part1)
+	fmt.Println(part2)
 }
