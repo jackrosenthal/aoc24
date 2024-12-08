@@ -48,6 +48,39 @@ func findAntinodes(pos Pos, city []string, antinodes map[Pos]bool) {
 	}
 }
 
+func findAntinodes2(pos Pos, city []string, antinodes map[Pos]bool) {
+	channel := city[pos.Row][pos.Col]
+	for r, row := range city {
+		for c, cell := range row {
+			cellPos := Pos{r, c}
+			if cellPos == pos {
+				continue
+			}
+			if cell == rune(channel) {
+				dr := pos.Row - r
+				dc := pos.Col - c
+				deltas := []Pos{
+					{-dr, -dc},
+					{dr, dc},
+				}
+				for _, d := range deltas {
+					curR := r
+					curC := c
+					for {
+						p := Pos{curR, curC}
+						if p.Row < 0 || p.Row >= len(city) || p.Col < 0 || p.Col >= len(city[0]) {
+							break
+						}
+						antinodes[p] = true
+						curR += d.Row
+						curC += d.Col
+					}
+				}
+			}
+		}
+	}
+}
+
 func main() {
 	file, err := os.Open("input.txt")
 	check(err)
@@ -69,6 +102,15 @@ func main() {
 			findAntinodes(Pos{r, c}, city, antinodes)
 		}
 	}
+	fmt.Println(len(antinodes))
 
+	for r, row := range city {
+		for c, cell := range row {
+			if string(cell) == "." {
+				continue
+			}
+			findAntinodes2(Pos{r, c}, city, antinodes)
+		}
+	}
 	fmt.Println(len(antinodes))
 }
