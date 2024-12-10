@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 )
 
@@ -22,27 +21,6 @@ type File struct {
 type DiskRLE struct {
 	FileId int // -1 for free blocks
 	Blocks int
-}
-
-func simplifyRLE(rle []DiskRLE) []DiskRLE {
-	for {
-		newRLE := []DiskRLE{}
-		skipNext := false
-		for i := 0; i < len(rle); i++ {
-			if skipNext {
-				skipNext = false
-			} else if i != len(rle)-1 && rle[i].FileId == -1 && rle[i+1].FileId == -1 {
-				newRLE = append(newRLE, DiskRLE{-1, rle[i].Blocks + rle[i+1].Blocks})
-				skipNext = true
-			} else {
-				newRLE = append(newRLE, rle[i])
-			}
-		}
-		if slices.Equal(rle, newRLE) {
-			return newRLE
-		}
-		rle = newRLE
-	}
 }
 
 func findSlot(disk []DiskRLE, blocks int) int {
@@ -124,7 +102,6 @@ func main() {
 				newDisk = append(newDisk, rle)
 			}
 		}
-		newDisk = simplifyRLE(newDisk)
 		slot := findSlot(newDisk, files[i].Blocks)
 		remFreeBlocks := newDisk[slot].Blocks - files[i].Blocks
 		newDiskLeft := newDisk[:slot]
