@@ -36,6 +36,28 @@ func reach(input []string, pos Pos, reachableNines map[Pos]bool) {
 	}
 }
 
+func distinctTrails(input []string, pos Pos) int {
+	if input[pos.Row][pos.Col] == '9' {
+		return 1
+	}
+
+	score := 0
+	adjacencies := []Pos{
+		{-1, 0}, {0, -1}, {1, 0}, {0, 1},
+	}
+	for _, adj := range adjacencies {
+		adjRow := pos.Row + adj.Row
+		adjCol := pos.Col + adj.Col
+		if adjRow >= 0 && adjRow < len(input) && adjCol >= 0 && adjCol < len(input[adjRow]) {
+			if input[adjRow][adjCol] == input[pos.Row][pos.Col]+1 {
+				score += distinctTrails(input, Pos{adjRow, adjCol})
+			}
+		}
+	}
+
+	return score
+}
+
 func main() {
 	file, err := os.Open("input.txt")
 	check(err)
@@ -49,15 +71,18 @@ func main() {
 	}
 
 	part1 := 0
+	part2 := 0
 	for row := 0; row < len(input); row++ {
 		for col := 0; col < len(input[row]); col++ {
 			if input[row][col] == '0' {
 				trails := map[Pos]bool{}
 				reach(input, Pos{row, col}, trails)
 				part1 += len(trails)
+				part2 += distinctTrails(input, Pos{row, col})
 			}
 		}
 	}
 
 	fmt.Println(part1)
+	fmt.Println(part2)
 }
