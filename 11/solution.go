@@ -44,12 +44,22 @@ func blinkStone(stone int64) []int64 {
 	return []int64{stone * 2024}
 }
 
-func blinkStones(stones []int64) []int64 {
-	newStones := []int64{}
-	for _, stone := range stones {
-		newStones = append(newStones, blinkStone(stone)...)
+func blinkStones(stones map[int64]int64) map[int64]int64 {
+	newStones := map[int64]int64{}
+	for stone, count := range stones {
+		for _, newStone := range blinkStone(stone) {
+			newStones[newStone] += count
+		}
 	}
 	return newStones
+}
+
+func countStones(stones map[int64]int64) int64 {
+	count := int64(0)
+	for _, c := range stones {
+		count += c
+	}
+	return count
 }
 
 func main() {
@@ -57,21 +67,20 @@ func main() {
 	check(err)
 
 	parts := strings.Fields(string(contents))
-	stones := []int64{}
+	stones := map[int64]int64{}
 	for _, part := range parts {
 		stone, err := strconv.Atoi(part)
 		check(err)
-		stones = append(stones, int64(stone))
+		stones[int64(stone)] = 1
 	}
 
 	for i := 0; i < 25; i++ {
 		stones = blinkStones(stones)
 	}
-	fmt.Println(len(stones))
+	fmt.Println(countStones(stones))
 
 	for i := 0; i < 50; i++ {
-		fmt.Println("...", i)
 		stones = blinkStones(stones)
 	}
-	fmt.Println(len(stones))
+	fmt.Println(countStones(stones))
 }
