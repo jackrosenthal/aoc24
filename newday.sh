@@ -25,7 +25,7 @@ while true; do
     seconds_left=$((starts_at - $(date +%s)))
     [[ $((starts_at - $(date +%s))) -lt 0 ]] && break
     for i in {0..7}; do
-        echo -ne "\r${spin_chrs[$i]} ${seconds_left}\t\t"
+        echo -ne "\r${spin_chrs[$i]} ${seconds_left}        "
         sleep 0.125
     done
 done
