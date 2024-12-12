@@ -16,27 +16,68 @@ type Pos struct {
 	r, c int
 }
 
-func getRegion(garden []string, pos Pos, visitedSet map[Pos]bool) (int, int) {
-	visitedSet[pos] = true
-	area := 1
-	perimeter := 0
-	neighbors := []Pos{{pos.r + 1, pos.c}, {pos.r - 1, pos.c}, {pos.r, pos.c + 1}, {pos.r, pos.c - 1}}
-	for _, neighbor := range neighbors {
-		if neighbor.r >= 0 && neighbor.r < len(garden) && neighbor.c >= 0 && neighbor.c < len(garden[0]) {
-			if garden[neighbor.r][neighbor.c] == garden[pos.r][pos.c] {
-				if !visitedSet[neighbor] {
-					a, p := getRegion(garden, neighbor, visitedSet)
-					area += a
-					perimeter += p
-				}
-			} else {
-				perimeter++
-			}
-		} else {
-			perimeter++
+var directions = []Pos{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+
+func getEdges(garden []string, pos Pos) map[Pos]bool {
+	edges := map[Pos]bool{}
+	for _, direc := range directions {
+		neighbor := Pos{pos.r + direc.r, pos.c + direc.c}
+		if neighbor.r < 0 || neighbor.r >= len(garden) || neighbor.c < 0 || neighbor.c >= len(garden[0]) {
+			edges[direc] = true
+		} else if garden[neighbor.r][neighbor.c] != garden[pos.r][pos.c] {
+			edges[direc] = true
 		}
 	}
-	return area, perimeter
+	return edges
+}
+
+func getRegionEdges(garden []string, pos Pos, edgeSet map[Pos]map[Pos]bool) {
+	edgeSet[pos] = getEdges(garden, pos)
+	for _, direc := range directions {
+		neighbor := Pos{pos.r + direc.r, pos.c + direc.c}
+		if neighbor.r >= 0 && neighbor.r < len(garden) && neighbor.c >= 0 && neighbor.c < len(garden[0]) {
+			if garden[neighbor.r][neighbor.c] == garden[pos.r][pos.c] {
+				if _, ok := edgeSet[neighbor]; !ok {
+					getRegionEdges(garden, neighbor, edgeSet)
+				}
+			}
+		}
+	}
+}
+
+func getPerimeter(edgeSet map[Pos]map[Pos]bool) int {
+	perimeter := 0
+	for _, edges := range edgeSet {
+		perimeter += len(edges)
+	}
+	return perimeter
+}
+
+func deleteSide(edgeSet map[Pos]map[Pos]bool, pos Pos, edge Pos) {
+	var direcs []Pos
+	if edge.r == 0 {
+		direcs = []Pos{{1, 0}, {-1, 0}}
+	} else {
+		direcs = []Pos{{0, 1}, {0, -1}}
+	}
+	if !edgeSet[pos][edge] {
+		return
+	}
+	delete(edgeSet[pos], edge)
+	for _, direc := range direcs {
+		deleteSide(edgeSet, Pos{pos.r + direc.r, pos.c + direc.c}, edge)
+	}
+}
+
+func destructiveCountSides(edgeSet map[Pos]map[Pos]bool) int {
+	sides := 0
+	for pos, edges := range edgeSet {
+		for edge := range edges {
+			deleteSide(edgeSet, pos, edge)
+			sides++
+		}
+	}
+	return sides
 }
 
 func main() {
@@ -51,16 +92,26 @@ func main() {
 		lines = append(lines, line)
 	}
 
-	price := 0
+	part1 := 0
+	part2 := 0
 	visitedSet := map[Pos]bool{}
 	for r := range lines {
 		for c := range lines[r] {
 			pos := Pos{r, c}
 			if !visitedSet[pos] {
-				a, p := getRegion(lines, Pos{r, c}, visitedSet)
-				price += a * p
+				edgeSet := map[Pos]map[Pos]bool{}
+				getRegionEdges(lines, pos, edgeSet)
+				area := len(edgeSet)
+				perimeter := getPerimeter(edgeSet)
+				sides := destructiveCountSides(edgeSet)
+				part1 += area * perimeter
+				part2 += area * sides
+				for pos := range edgeSet {
+					visitedSet[pos] = true
+				}
 			}
 		}
 	}
-	fmt.Println(price)
+	fmt.Println(part1)
+	fmt.Println(part2)
 }
