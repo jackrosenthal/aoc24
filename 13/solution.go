@@ -28,45 +28,25 @@ type ButtonConfig struct {
 	x, y int
 }
 
-func minTokens(aPresses int, bPresses int, maxPrice int, a ButtonConfig, b ButtonConfig, prize Pos) (bool, int) {
-	if aPresses > 100 || bPresses > 100 {
-		return false, maxPrice
+func minTokens(a ButtonConfig, b ButtonConfig, prize Pos) (bool, int) {
+	possible := false
+	best := 101 * 4
+	for aPresses := 0; aPresses < 101; aPresses++ {
+		for bPresses := 0; bPresses < 101; bPresses++ {
+			if a.x*aPresses+b.x*bPresses == prize.x && a.y*aPresses+b.y*bPresses == prize.y {
+				possible = true
+				price := aPresses*3 + bPresses
+				if price < best {
+					best = price
+				}
+			}
+		}
 	}
-
-	currentPrice := aPresses*3 + bPresses
-	if currentPrice >= maxPrice {
-		return false, 0
-	}
-
-	currentPos := Pos{aPresses*a.x + bPresses*b.x, aPresses*a.y + bPresses*b.y}
-	if currentPos == prize {
-		return true, currentPrice
-	}
-
-	if currentPos.x > prize.x || currentPos.y > prize.y {
-		return false, 0
-	}
-
-	bPossible, bPrice := minTokens(aPresses, bPresses+1, maxPrice, a, b, prize)
-	if bPossible {
-		maxPrice = bPrice
-	}
-
-	aPossible, aPrice := minTokens(aPresses+1, bPresses, maxPrice, a, b, prize)
-
-	if !bPossible {
-		return aPossible, aPrice
-	}
-
-	if !aPossible {
-		return bPossible, bPrice
-	}
-
-	return true, min(aPrice, bPrice)
+	return possible, best
 }
 
 func main() {
-	file, err := os.Open("example.txt")
+	file, err := os.Open("input.txt")
 	check(err)
 	defer file.Close()
 
@@ -90,8 +70,7 @@ func main() {
 		aConfig := ButtonConfig{atoi(aMatch[1]), atoi(aMatch[2])}
 		bConfig := ButtonConfig{atoi(bMatch[1]), atoi(bMatch[2])}
 		prizeLocation := Pos{atoi(prizeMatch[1]), atoi(prizeMatch[2])}
-		fmt.Println("solving", aConfig, bConfig, prizeLocation)
-		possible, price := minTokens(0, 0, 101*4, aConfig, bConfig, prizeLocation)
+		possible, price := minTokens(aConfig, bConfig, prizeLocation)
 		if possible {
 			part1 += price
 		}
