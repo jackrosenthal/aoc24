@@ -65,11 +65,11 @@ func (pq *PriorityQueue) Pop() interface{} {
 	return item
 }
 
-func djMaze(maze []string) int {
+func djMaze(maze []string) (DirPosCost, map[DirPos][]DirPos) {
 	pq := PriorityQueue{}
 	heap.Init(&pq)
 	dist := make(map[DirPos]int)
-	prev := make(map[DirPos]DirPos)
+	prev := make(map[DirPos][]DirPos)
 	for r, row := range maze {
 		for c, cell := range row {
 			pos := Pos{r, c}
@@ -77,6 +77,7 @@ func djMaze(maze []string) int {
 				dPos := DirPos{pos, 0}
 				heap.Push(&pq, &PqItem{dPos, 0, 0})
 				dist[dPos] = 0
+				prev[dPos] = []DirPos{}
 				for i := 1; i < 4; i++ {
 					dist[DirPos{pos, i}] = -1
 				}
@@ -88,7 +89,7 @@ func djMaze(maze []string) int {
 		}
 	}
 
-	endCost := -1
+	endDirPosCost := DirPosCost{DirPos{Pos{-1, -1}, -1}, -1}
 
 	for pq.Len() > 0 {
 		item := heap.Pop(&pq).(*PqItem)
@@ -106,19 +107,35 @@ func djMaze(maze []string) int {
 		for _, neighbor := range neighbors {
 			alt := dist[dPos] + neighbor.cost
 			if maze[neighbor.pos.pos.r][neighbor.pos.pos.c] == 'E' {
-				if endCost == -1 || alt < endCost {
-					endCost = alt
+				if endDirPosCost.cost == -1 || alt < endDirPosCost.cost {
+					endDirPosCost = DirPosCost{dPos, alt}
 				}
 			}
 			if alt < dist[neighbor.pos] || dist[neighbor.pos] == -1 {
 				dist[neighbor.pos] = alt
-				prev[neighbor.pos] = dPos
+				prev[neighbor.pos] = []DirPos{dPos}
 				heap.Push(&pq, &PqItem{neighbor.pos, alt, 0})
+			} else if alt == dist[neighbor.pos] {
+				prev[neighbor.pos] = append(prev[neighbor.pos], dPos)
 			}
 		}
 	}
 
-	return endCost
+	return endDirPosCost, prev
+}
+
+func countCellsInBestPaths(prev map[DirPos][]DirPos, end DirPosCost) int {
+	posSet := make(map[Pos]bool)
+	stack := []DirPos{end.pos}
+	for len(stack) > 0 {
+		dPos := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		posSet[dPos.pos] = true
+		for _, prevDPos := range prev[dPos] {
+			stack = append(stack, prevDPos)
+		}
+	}
+	return len(posSet) + 1
 }
 
 func main() {
@@ -133,5 +150,7 @@ func main() {
 		maze = append(maze, line)
 	}
 
-	fmt.Println(djMaze(maze))
+	end, prev := djMaze(maze)
+	fmt.Println(end.cost)
+	fmt.Println(countCellsInBestPaths(prev, end))
 }
