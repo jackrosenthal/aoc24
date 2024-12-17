@@ -90,18 +90,42 @@ func (cpu *Cpu) Run() {
 	}
 }
 
-func (cpu *Cpu) Copy() Cpu {
-	result := Cpu{
-		a:       cpu.a,
-		b:       cpu.b,
-		c:       cpu.c,
-		pc:      cpu.pc,
-		program: cpu.program,
-		halted:  cpu.halted,
-		output:  make([]int, len(cpu.output)),
+func (cpu Cpu) DoOneA(a int) (int, int) {
+	cpu.pc = 0
+	cpu.a = a
+	for cpu.program[cpu.pc] != 5 {
+		cpu.Step()
 	}
-	copy(result.output, cpu.output)
-	return result
+	output := cpu.GetComboOperand(cpu.program[cpu.pc+1]) % 8
+	cpu.pc += 2
+	for cpu.program[cpu.pc] != 3 {
+		cpu.Step()
+	}
+	return output, cpu.a
+}
+
+func searchA(cpu Cpu, targetOutput []int, targetA int) int {
+	if len(targetOutput) == 0 {
+		return targetA
+	}
+
+	results := []int{}
+	for i := targetA * 8; i < (targetA+1)*8; i++ {
+		b, newA := cpu.DoOneA(i)
+		if newA != targetA {
+			panic("newA != targetA")
+		}
+		if b == targetOutput[len(targetOutput)-1] {
+			result := searchA(cpu, targetOutput[:len(targetOutput)-1], i)
+			if result != -1 {
+				results = append(results, result)
+			}
+		}
+	}
+	if len(results) == 0 {
+		return -1
+	}
+	return slices.Min(results)
 }
 
 func listToString(list []int) string {
@@ -110,32 +134,6 @@ func listToString(list []int) string {
 		str += fmt.Sprintf(",%d", i)
 	}
 	return str[1:]
-}
-
-func findSelfOutputtingAInit(origCpu Cpu) int {
-	for a := 0; ; a++ {
-		if a%100000 == 0 {
-			fmt.Printf("\ra >= %d", a)
-		}
-		cpu := origCpu.Copy()
-		cpu.a = a
-		for {
-			cpu.Step()
-			if cpu.halted {
-				if slices.Equal(cpu.output, cpu.program) {
-					fmt.Println()
-					return a
-				}
-				break
-			}
-			if len(cpu.output) > len(cpu.program) {
-				break
-			}
-			if !slices.Equal(cpu.output, cpu.program[:len(cpu.output)]) {
-				break
-			}
-		}
-	}
 }
 
 func main() {
@@ -166,9 +164,7 @@ func main() {
 		cpu.program = append(cpu.program, atoi(s))
 	}
 
-	cpuPart1 := cpu.Copy()
-	cpuPart1.Run()
-	fmt.Println(listToString(cpuPart1.output))
-
-	fmt.Println(findSelfOutputtingAInit(cpu))
+	cpu.Run()
+	fmt.Println(listToString(cpu.output))
+	fmt.Println(searchA(cpu, cpu.program, 0))
 }
