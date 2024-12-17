@@ -54,9 +54,7 @@ func (cpu *Cpu) Step() {
 	operand := cpu.program[cpu.pc+1]
 	switch opcode {
 	case 0:
-		numerator := cpu.a
-		denominator := 1 << cpu.GetComboOperand(operand)
-		cpu.a = numerator / denominator
+		cpu.a >>= cpu.GetComboOperand(operand)
 	case 1:
 		cpu.b ^= operand
 	case 2:
@@ -70,13 +68,9 @@ func (cpu *Cpu) Step() {
 	case 5:
 		cpu.output = append(cpu.output, cpu.GetComboOperand(operand)%8)
 	case 6:
-		numerator := cpu.a
-		denominator := 1 << cpu.GetComboOperand(operand)
-		cpu.b = numerator / denominator
+		cpu.b = cpu.a >> cpu.GetComboOperand(operand)
 	case 7:
-		numerator := cpu.a
-		denominator := 1 << cpu.GetComboOperand(operand)
-		cpu.c = numerator / denominator
+		cpu.c = cpu.a >> cpu.GetComboOperand(operand)
 	default:
 		panic("Invalid opcode")
 	}
