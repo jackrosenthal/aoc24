@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -89,12 +90,52 @@ func (cpu *Cpu) Run() {
 	}
 }
 
+func (cpu *Cpu) Copy() Cpu {
+	result := Cpu{
+		a:       cpu.a,
+		b:       cpu.b,
+		c:       cpu.c,
+		pc:      cpu.pc,
+		program: cpu.program,
+		halted:  cpu.halted,
+		output:  make([]int, len(cpu.output)),
+	}
+	copy(result.output, cpu.output)
+	return result
+}
+
 func listToString(list []int) string {
 	str := ""
 	for _, i := range list {
 		str += fmt.Sprintf(",%d", i)
 	}
 	return str[1:]
+}
+
+func findSelfOutputtingAInit(origCpu Cpu) int {
+	for a := 0; ; a++ {
+		if a%100000 == 0 {
+			fmt.Printf("\ra >= %d", a)
+		}
+		cpu := origCpu.Copy()
+		cpu.a = a
+		for {
+			cpu.Step()
+			if cpu.halted {
+				if slices.Equal(cpu.output, cpu.program) {
+					fmt.Println()
+					return a
+				}
+				break
+			}
+			if len(cpu.output) > len(cpu.program) {
+				break
+			}
+			if !slices.Equal(cpu.output, cpu.program[:len(cpu.output)]) {
+				break
+			}
+		}
+	}
 }
 
 func main() {
@@ -125,6 +166,9 @@ func main() {
 		cpu.program = append(cpu.program, atoi(s))
 	}
 
-	cpu.Run()
-	fmt.Println(listToString(cpu.output))
+	cpuPart1 := cpu.Copy()
+	cpuPart1.Run()
+	fmt.Println(listToString(cpuPart1.output))
+
+	fmt.Println(findSelfOutputtingAInit(cpu))
 }
