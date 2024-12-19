@@ -13,9 +13,15 @@ func check(e error) {
 	}
 }
 
-func designIsPossible(design string, towels map[byte][]string) bool {
+var cache = map[string]int{}
+
+func countWays(design string, towels map[byte][]string) int {
 	if len(design) == 0 {
-		return true
+		return 1
+	}
+
+	if ways, ok := cache[design]; ok {
+		return ways
 	}
 
 	options := []string{}
@@ -25,13 +31,13 @@ func designIsPossible(design string, towels map[byte][]string) bool {
 		}
 	}
 
+	ways := 0
 	for _, option := range options {
-		if designIsPossible(design[len(option):], towels) {
-			return true
-		}
+		ways += countWays(design[len(option):], towels)
 	}
 
-	return false
+	cache[design] = ways
+	return ways
 }
 
 func main() {
@@ -57,10 +63,14 @@ func main() {
 	}
 
 	part1 := 0
+	part2 := 0
 	for _, design := range designs {
-		if designIsPossible(design, towels) {
+		ways := countWays(design, towels)
+		if ways > 0 {
 			part1++
 		}
+		part2 += ways
 	}
 	fmt.Println(part1)
+	fmt.Println(part2)
 }
