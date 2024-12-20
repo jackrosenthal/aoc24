@@ -13,6 +13,13 @@ func check(e error) {
 	}
 }
 
+func abs(val int) int {
+	if val < 0 {
+		return -val
+	}
+	return val
+}
+
 type Pos struct {
 	r, c int
 }
@@ -52,17 +59,39 @@ func (r *Racetrack) Init() {
 	r.track[r.end.r][r.end.c] = '.'
 }
 
-func (r *Racetrack) EvalCheat(pos Pos, direction Pos) int {
-	posEnd := Pos{pos.r + direction.r*2, pos.c + direction.c*2}
-	if posEnd.r < 0 || posEnd.c < 0 || posEnd.r >= len(r.track) || posEnd.c >= len(r.track[0]) {
-		return 0
+func (r *Racetrack) forEachCheatEndPosition(pos Pos, maxCheat int, cb func(Pos, Pos)) {
+	if r.track[pos.r][pos.c] == '#' {
+		return
 	}
-	if r.track[pos.r][pos.c] != '.' || r.track[posEnd.r][posEnd.c] != '.' {
-		return 0
+	for row := pos.r - maxCheat*2; row <= pos.r+maxCheat*2; row++ {
+		for col := pos.c - maxCheat*2; col <= pos.c+maxCheat*2; col++ {
+			if row < 0 || row >= len(r.track) || col < 0 || col >= len(r.track[0]) {
+				continue
+			}
+			if r.track[row][col] == '#' {
+				continue
+			}
+			dist := abs(pos.r-row) + abs(pos.c-col)
+			if dist > maxCheat {
+				continue
+			}
+			cb(pos, Pos{row, col})
+		}
 	}
+}
 
+func (r *Racetrack) ForEachCheat(maxCheat int, cb func(Pos, Pos)) {
+	for row := range len(r.track) {
+		for col := range len(r.track[0]) {
+			pos := Pos{row, col}
+			r.forEachCheatEndPosition(pos, maxCheat, cb)
+		}
+	}
+}
+
+func (r *Racetrack) EvalCheat(pos Pos, posEnd Pos) int {
 	normalDist := r.endDist[r.start]
-	newDist := r.startDist[pos] + 1 + r.endDist[posEnd]
+	newDist := r.startDist[pos] + abs(pos.r-posEnd.r) + abs(pos.c-posEnd.c) + r.endDist[posEnd] - 1
 	return normalDist - newDist
 }
 
@@ -89,15 +118,18 @@ func main() {
 	racetrack.Init()
 
 	part1 := 0
-	for r := 0; r < len(racetrack.track); r++ {
-		for c := 0; c < len(racetrack.track[0]); c++ {
-			pos := Pos{r, c}
-			for _, d := range directions {
-				if cheat := racetrack.EvalCheat(pos, d); cheat >= 100 {
-					part1++
-				}
-			}
+	racetrack.ForEachCheat(2, func(pos Pos, endPos Pos) {
+		if cheat := racetrack.EvalCheat(pos, endPos); cheat >= 100 {
+			part1++
 		}
-	}
+	})
 	fmt.Println(part1)
+
+	part2 := 0
+	racetrack.ForEachCheat(20, func(pos Pos, endPos Pos) {
+		if cheat := racetrack.EvalCheat(pos, endPos); cheat >= 100 {
+			part2++
+		}
+	})
+	fmt.Println(part2)
 }
