@@ -45,37 +45,27 @@ var DirpadAdjacencies = map[byte]Adjacencies{
 }
 
 type State struct {
-	DigitPadState    byte
-	RadiatedPadState byte
-	FrozenPadState   byte
-	NextButtons      string
-}
-
-func (s State) String() string {
-	return fmt.Sprintf("{DigitPad='%c' RadiatedPad='%c' FrozenPad='%c' \"%s\"}", s.DigitPadState, s.RadiatedPadState, s.FrozenPadState, s.NextButtons)
+	DigitPadState byte
+	DirPadStates  string
+	NextButtons   string
 }
 
 func (s *State) ToKeypads() *Keypad {
-	digitPad := Keypad{
+	pad := &Keypad{
 		CurrentButton: s.DigitPadState,
 		Adjacencies:   DigitAdjacencies,
 		NextButtons:   s.NextButtons,
 	}
-	radiatedPad := Keypad{
-		CurrentButton: s.RadiatedPadState,
-		Adjacencies:   DirpadAdjacencies,
-		InnerKeypad:   &digitPad,
-	}
-	frozenPad := Keypad{
-		CurrentButton: s.FrozenPadState,
-		Adjacencies:   DirpadAdjacencies,
-		InnerKeypad:   &radiatedPad,
-	}
-	humanPad := Keypad{
-		InnerKeypad: &frozenPad,
+
+	for _, state := range s.DirPadStates {
+		pad = &Keypad{
+			CurrentButton: byte(state),
+			Adjacencies:   DirpadAdjacencies,
+			InnerKeypad:   pad,
+		}
 	}
 
-	return &humanPad
+	return &Keypad{InnerKeypad: pad}
 }
 
 func (s *State) Neighbors() []State {
@@ -87,26 +77,26 @@ func (s *State) Neighbors() []State {
 		keypads := s.ToKeypads()
 		if keypads.Press(button) {
 			neighbors = append(neighbors, keypads.ToState())
-		} else {
-			//fmt.Printf("%v: %c not pressable\n", s, button)
 		}
 	}
 	return neighbors
 }
 
-func search(buttons string) int {
+func search(dirpads int, buttons string) int {
+	dirPadStates := ""
+	for i := 0; i < dirpads; i++ {
+		dirPadStates += "A"
+	}
 	initState := State{
-		DigitPadState:    'A',
-		RadiatedPadState: 'A',
-		FrozenPadState:   'A',
-		NextButtons:      buttons,
+		DigitPadState: 'A',
+		DirPadStates:  dirPadStates,
+		NextButtons:   buttons,
 	}
 	queue := []State{initState}
 	dist := map[State]int{initState: 0}
 	bestDist := math.MaxInt
 
 	for len(queue) > 0 {
-		//fmt.Println(queue)
 		current := queue[0]
 		queue = queue[1:]
 		if current.NextButtons == "" {
@@ -131,15 +121,23 @@ type Keypad struct {
 }
 
 func (k *Keypad) ToState() State {
-	frozenPad := k.InnerKeypad
-	radiatedPad := frozenPad.InnerKeypad
-	digitPad := radiatedPad.InnerKeypad
+	var digitPad *Keypad
+	dirPadStates := ""
+	k = k.InnerKeypad
+	for {
+		if k.InnerKeypad == nil {
+			digitPad = k
+			break
+		}
+
+		dirPadStates = string(k.CurrentButton) + dirPadStates
+		k = k.InnerKeypad
+	}
 
 	return State{
-		DigitPadState:    digitPad.CurrentButton,
-		RadiatedPadState: radiatedPad.CurrentButton,
-		FrozenPadState:   frozenPad.CurrentButton,
-		NextButtons:      digitPad.NextButtons,
+		DigitPadState: digitPad.CurrentButton,
+		DirPadStates:  dirPadStates,
+		NextButtons:   digitPad.NextButtons,
 	}
 }
 
@@ -176,8 +174,8 @@ func (k *Keypad) Press(button byte) bool {
 	return true
 }
 
-func getCodeComplexity(code string) int {
-	shortestSeq := search(code)
+func getCodeComplexity(keypads int, code string) int {
+	shortestSeq := search(keypads, code)
 	numericPart := strings.TrimLeft(code, "0")
 	numericPart = strings.TrimRight(numericPart, "A")
 	numeric, err := strconv.Atoi(numericPart)
@@ -194,7 +192,7 @@ func main() {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		part1 += getCodeComplexity(line)
+		part1 += getCodeComplexity(2, line)
 	}
 	fmt.Println(part1)
 }
