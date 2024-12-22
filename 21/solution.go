@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -36,6 +35,24 @@ var DigitAdjacencies = map[byte]Adjacencies{
 	'A': {up: '3', left: '0'},
 }
 
+type Pos struct {
+	r, c int
+}
+
+var DigitPositions = map[byte]Pos{
+	'7': {r: 0, c: 0},
+	'8': {r: 0, c: 1},
+	'9': {r: 0, c: 2},
+	'4': {r: 1, c: 0},
+	'5': {r: 1, c: 1},
+	'6': {r: 1, c: 2},
+	'1': {r: 2, c: 0},
+	'2': {r: 2, c: 1},
+	'3': {r: 2, c: 2},
+	'0': {r: 3, c: 1},
+	'A': {r: 4, c: 2},
+}
+
 var DirpadAdjacencies = map[byte]Adjacencies{
 	'^': {right: 'A', down: 'v'},
 	'A': {left: '^', down: '>'},
@@ -47,14 +64,12 @@ var DirpadAdjacencies = map[byte]Adjacencies{
 type State struct {
 	DigitPadState byte
 	DirPadStates  string
-	NextButtons   string
 }
 
 func (s *State) ToKeypads() *Keypad {
 	pad := &Keypad{
 		CurrentButton: s.DigitPadState,
 		Adjacencies:   DigitAdjacencies,
-		NextButtons:   s.NextButtons,
 	}
 
 	for _, state := range s.DirPadStates {
@@ -68,56 +83,67 @@ func (s *State) ToKeypads() *Keypad {
 	return &Keypad{InnerKeypad: pad}
 }
 
-func (s *State) Neighbors() []State {
+func (s *State) Neighbors(endButton byte) []State {
 	neighbors := []State{}
-	if s.NextButtons == "" {
-		return neighbors
-	}
-	for _, button := range []byte{'^', 'v', '<', '>', 'A'} {
+	for _, button := range []byte{'<', 'v', '^', '>', 'A'} {
 		keypads := s.ToKeypads()
-		if keypads.Press(button) {
+		if keypads.Press(button, endButton) {
 			neighbors = append(neighbors, keypads.ToState())
 		}
 	}
 	return neighbors
 }
 
-func search(dirpads int, buttons string) int {
-	dirPadStates := ""
-	for i := 0; i < dirpads; i++ {
-		dirPadStates += "A"
+type SearchCacheKey struct {
+	startButton byte
+	endButton   byte
+}
+
+type SearchCache struct {
+	DirPads int
+	Cache   map[SearchCacheKey]int
+}
+
+func (s *SearchCache) Search(startButton byte, endButton byte) int {
+	cacheKey := SearchCacheKey{startButton, endButton}
+	if cacheVal, ok := s.Cache[cacheKey]; ok {
+		return cacheVal
 	}
+
+	if startButton == endButton {
+		return 0
+	}
+
+	dirPadsAllA := strings.Repeat("A", s.DirPads)
 	initState := State{
-		DigitPadState: 'A',
-		DirPadStates:  dirPadStates,
-		NextButtons:   buttons,
+		DigitPadState: startButton,
+		DirPadStates:  dirPadsAllA,
 	}
 	queue := []State{initState}
 	dist := map[State]int{initState: 0}
-	bestDist := math.MaxInt
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-		if current.NextButtons == "" {
-			bestDist = min(bestDist, dist[current])
-		}
-		for _, neighbor := range current.Neighbors() {
+		for _, neighbor := range current.Neighbors(endButton) {
 			if _, ok := dist[neighbor]; !ok {
 				dist[neighbor] = dist[current] + 1
+				if neighbor.DigitPadState == endButton && neighbor.DirPadStates == dirPadsAllA {
+					s.Cache[cacheKey] = dist[neighbor]
+					return dist[neighbor]
+				}
 				queue = append(queue, neighbor)
 			}
 		}
 	}
 
-	return bestDist
+	panic("unreachable")
 }
 
 type Keypad struct {
 	CurrentButton byte
 	Adjacencies   map[byte]Adjacencies
 	InnerKeypad   *Keypad
-	NextButtons   string
 }
 
 func (k *Keypad) ToState() State {
@@ -137,21 +163,19 @@ func (k *Keypad) ToState() State {
 	return State{
 		DigitPadState: digitPad.CurrentButton,
 		DirPadStates:  dirPadStates,
-		NextButtons:   digitPad.NextButtons,
 	}
 }
 
-func (k *Keypad) Press(button byte) bool {
+func (k *Keypad) Press(button byte, endButton byte) bool {
 	if k.InnerKeypad == nil {
-		if button == k.NextButtons[0] {
-			k.NextButtons = k.NextButtons[1:]
+		if button == endButton {
 			return true
 		}
 		return false
 	}
 
 	if button == 'A' {
-		return k.InnerKeypad.Press(k.InnerKeypad.CurrentButton)
+		return k.InnerKeypad.Press(k.InnerKeypad.CurrentButton, endButton)
 	}
 
 	adjacencies := k.InnerKeypad.Adjacencies[k.InnerKeypad.CurrentButton]
@@ -174,8 +198,19 @@ func (k *Keypad) Press(button byte) bool {
 	return true
 }
 
-func getCodeComplexity(keypads int, code string) int {
-	shortestSeq := search(keypads, code)
+func (s *SearchCache) SearchCode(code string) int {
+	result := 0
+	curPos := 'A'
+	for _, chr := range code {
+		result += s.Search(byte(curPos), byte(chr)) + 1
+		curPos = chr
+	}
+	return result
+}
+
+func (s *SearchCache) GetCodeComplexity(code string) int {
+	fmt.Println("Evaluating complexity of code", code, "at", s.DirPads, "keypads")
+	shortestSeq := s.SearchCode(code)
 	numericPart := strings.TrimLeft(code, "0")
 	numericPart = strings.TrimRight(numericPart, "A")
 	numeric, err := strconv.Atoi(numericPart)
@@ -189,10 +224,20 @@ func main() {
 	defer file.Close()
 
 	part1 := 0
+	part2 := 0
+
+	part1Searcher := SearchCache{DirPads: 2, Cache: map[SearchCacheKey]int{}}
+	part2Searcher := SearchCache{DirPads: 6, Cache: map[SearchCacheKey]int{}}
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		part1 += getCodeComplexity(2, line)
+		part1 += part1Searcher.GetCodeComplexity(line)
+		part2 += part2Searcher.GetCodeComplexity(line)
 	}
+
+	// 162740
 	fmt.Println(part1)
+	// 6153778
+	fmt.Println(part2)
 }
