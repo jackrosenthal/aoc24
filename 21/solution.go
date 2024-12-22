@@ -14,208 +14,151 @@ func check(e error) {
 	}
 }
 
-type Adjacencies struct {
-	up    byte
-	down  byte
-	left  byte
-	right byte
-}
-
-var DigitAdjacencies = map[byte]Adjacencies{
-	'7': {down: '4', right: '8'},
-	'8': {left: '7', down: '5', right: '9'},
-	'9': {left: '8', down: '6'},
-	'4': {up: '7', right: '5', down: '1'},
-	'5': {up: '8', left: '4', right: '6', down: '2'},
-	'6': {up: '9', left: '5', down: '3'},
-	'1': {up: '4', right: '2'},
-	'2': {up: '5', left: '1', right: '3', down: '0'},
-	'3': {up: '6', left: '2', down: 'A'},
-	'0': {up: '2', right: 'A'},
-	'A': {up: '3', left: '0'},
-}
-
 type Pos struct {
 	r, c int
 }
 
-var DigitPositions = map[byte]Pos{
-	'7': {r: 0, c: 0},
-	'8': {r: 0, c: 1},
-	'9': {r: 0, c: 2},
-	'4': {r: 1, c: 0},
-	'5': {r: 1, c: 1},
-	'6': {r: 1, c: 2},
-	'1': {r: 2, c: 0},
-	'2': {r: 2, c: 1},
-	'3': {r: 2, c: 2},
-	'0': {r: 3, c: 1},
-	'A': {r: 4, c: 2},
+func planRouteUDLR(startPos Pos, endPos Pos) string {
+	dr := endPos.r - startPos.r
+	dc := endPos.c - startPos.c
+
+	udChr := "v"
+	if dr < 0 {
+		udChr = "^"
+		dr = -dr
+	}
+
+	lrChr := ">"
+	if dc < 0 {
+		lrChr = "<"
+		dc = -dc
+	}
+
+	return strings.Repeat(udChr, dr) + strings.Repeat(lrChr, dc) + "A"
 }
 
-var DirpadAdjacencies = map[byte]Adjacencies{
-	'^': {right: 'A', down: 'v'},
-	'A': {left: '^', down: '>'},
-	'<': {right: 'v'},
-	'v': {up: '^', right: '>', left: '<'},
-	'>': {left: 'v', up: 'A'},
+func planRouteLRUD(startPos Pos, endPos Pos) string {
+	dr := endPos.r - startPos.r
+	dc := endPos.c - startPos.c
+
+	udChr := "v"
+	if dr < 0 {
+		udChr = "^"
+		dr = -dr
+	}
+
+	lrChr := ">"
+	if dc < 0 {
+		lrChr = "<"
+		dc = -dc
+	}
+
+	return strings.Repeat(lrChr, dc) + strings.Repeat(udChr, dr) + "A"
 }
 
-type State struct {
-	DigitPadState byte
-	DirPadStates  string
+func planRouteGeneral(startPos Pos, endPos Pos) string {
+	if startPos.c < endPos.c {
+		return planRouteUDLR(startPos, endPos)
+	}
+	return planRouteLRUD(startPos, endPos)
 }
 
-func (s *State) ToKeypads() *Keypad {
-	pad := &Keypad{
-		CurrentButton: s.DigitPadState,
-		Adjacencies:   DigitAdjacencies,
+func planRouteNumpad(startPos Pos, endPos Pos) string {
+	if startPos.r == 3 && endPos.c == 0 {
+		return planRouteUDLR(startPos, endPos)
 	}
-
-	for _, state := range s.DirPadStates {
-		pad = &Keypad{
-			CurrentButton: byte(state),
-			Adjacencies:   DirpadAdjacencies,
-			InnerKeypad:   pad,
-		}
+	if startPos.c == 0 && endPos.r == 3 {
+		return planRouteLRUD(startPos, endPos)
 	}
-
-	return &Keypad{InnerKeypad: pad}
+	return planRouteGeneral(startPos, endPos)
 }
 
-func (s *State) Neighbors(endButton byte) []State {
-	neighbors := []State{}
-	for _, button := range []byte{'<', 'v', '^', '>', 'A'} {
-		keypads := s.ToKeypads()
-		if keypads.Press(button, endButton) {
-			neighbors = append(neighbors, keypads.ToState())
-		}
+func planRouteDirpad(startPos Pos, endPos Pos) string {
+	if startPos.c == 0 {
+		return planRouteLRUD(startPos, endPos)
 	}
-	return neighbors
+	if endPos.c == 0 {
+		return planRouteUDLR(startPos, endPos)
+	}
+	return planRouteGeneral(startPos, endPos)
 }
 
-type SearchCacheKey struct {
-	startButton byte
-	endButton   byte
+type CacheKey struct {
+	cur        rune
+	next       rune
+	numDirPads int
 }
 
-type SearchCache struct {
-	DirPads int
-	Cache   map[SearchCacheKey]int
+type Pad struct {
+	planRoute func(Pos, Pos) string
+	chrToPos  map[rune]Pos
+	costCache map[CacheKey]int
 }
 
-func (s *SearchCache) Search(startButton byte, endButton byte) int {
-	cacheKey := SearchCacheKey{startButton, endButton}
-	if cacheVal, ok := s.Cache[cacheKey]; ok {
-		return cacheVal
-	}
-
-	if startButton == endButton {
-		return 0
-	}
-
-	dirPadsAllA := strings.Repeat("A", s.DirPads)
-	initState := State{
-		DigitPadState: startButton,
-		DirPadStates:  dirPadsAllA,
-	}
-	queue := []State{initState}
-	dist := map[State]int{initState: 0}
-
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-		for _, neighbor := range current.Neighbors(endButton) {
-			if _, ok := dist[neighbor]; !ok {
-				dist[neighbor] = dist[current] + 1
-				if neighbor.DigitPadState == endButton && neighbor.DirPadStates == dirPadsAllA {
-					s.Cache[cacheKey] = dist[neighbor]
-					return dist[neighbor]
-				}
-				queue = append(queue, neighbor)
-			}
-		}
-	}
-
-	panic("unreachable")
+var numpad = Pad{
+	planRoute: planRouteNumpad,
+	chrToPos: map[rune]Pos{
+		'7': {0, 0},
+		'8': {0, 1},
+		'9': {0, 2},
+		'4': {1, 0},
+		'5': {1, 1},
+		'6': {1, 2},
+		'1': {2, 0},
+		'2': {2, 1},
+		'3': {2, 2},
+		'0': {3, 1},
+		'A': {3, 2},
+	},
+	costCache: map[CacheKey]int{},
 }
 
-type Keypad struct {
-	CurrentButton byte
-	Adjacencies   map[byte]Adjacencies
-	InnerKeypad   *Keypad
+var dirpad = Pad{
+	planRoute: planRouteDirpad,
+	chrToPos: map[rune]Pos{
+		'^': {0, 1},
+		'A': {0, 2},
+		'<': {1, 0},
+		'v': {1, 1},
+		'>': {1, 2},
+	},
+	costCache: map[CacheKey]int{},
 }
 
-func (k *Keypad) ToState() State {
-	var digitPad *Keypad
-	dirPadStates := ""
-	k = k.InnerKeypad
-	for {
-		if k.InnerKeypad == nil {
-			digitPad = k
-			break
-		}
-
-		dirPadStates = string(k.CurrentButton) + dirPadStates
-		k = k.InnerKeypad
+func computeCost(pad Pad, cur rune, next rune, numDirPads int) int {
+	cacheKey := CacheKey{cur, next, numDirPads}
+	if val, ok := pad.costCache[cacheKey]; ok {
+		return val
 	}
-
-	return State{
-		DigitPadState: digitPad.CurrentButton,
-		DirPadStates:  dirPadStates,
-	}
-}
-
-func (k *Keypad) Press(button byte, endButton byte) bool {
-	if k.InnerKeypad == nil {
-		if button == endButton {
-			return true
-		}
-		return false
-	}
-
-	if button == 'A' {
-		return k.InnerKeypad.Press(k.InnerKeypad.CurrentButton, endButton)
-	}
-
-	adjacencies := k.InnerKeypad.Adjacencies[k.InnerKeypad.CurrentButton]
-	var adjacent byte
-	switch button {
-	case '^':
-		adjacent = adjacencies.up
-	case 'v':
-		adjacent = adjacencies.down
-	case '<':
-		adjacent = adjacencies.left
-	case '>':
-		adjacent = adjacencies.right
-	}
-
-	if adjacent == 0 {
-		return false
-	}
-	k.InnerKeypad.CurrentButton = adjacent
-	return true
-}
-
-func (s *SearchCache) SearchCode(code string) int {
-	result := 0
-	curPos := 'A'
-	for _, chr := range code {
-		result += s.Search(byte(curPos), byte(chr)) + 1
-		curPos = chr
-	}
+	curPos := pad.chrToPos[cur]
+	nextPos := pad.chrToPos[next]
+	routePlan := pad.planRoute(curPos, nextPos)
+	result := computeCostStr(dirpad, 'A', routePlan, numDirPads-1)
+	pad.costCache[cacheKey] = result
 	return result
 }
 
-func (s *SearchCache) GetCodeComplexity(code string) int {
-	fmt.Println("Evaluating complexity of code", code, "at", s.DirPads, "keypads")
-	shortestSeq := s.SearchCode(code)
+func computeCostStr(pad Pad, cur rune, str string, numDirPads int) int {
+	if numDirPads == 0 {
+		return len(str)
+	}
+
+	cost := 0
+	for _, chr := range str {
+		cost += computeCost(pad, cur, chr, numDirPads)
+		cur = chr
+	}
+
+	return cost
+}
+
+func getCodeComplexity(code string, numDirPads int) int {
+	cost := computeCostStr(numpad, 'A', code, numDirPads+1)
 	numericPart := strings.TrimLeft(code, "0")
 	numericPart = strings.TrimRight(numericPart, "A")
 	numeric, err := strconv.Atoi(numericPart)
 	check(err)
-	return shortestSeq * numeric
+	return cost * numeric
 }
 
 func main() {
@@ -225,19 +168,12 @@ func main() {
 
 	part1 := 0
 	part2 := 0
-
-	part1Searcher := SearchCache{DirPads: 2, Cache: map[SearchCacheKey]int{}}
-	part2Searcher := SearchCache{DirPads: 6, Cache: map[SearchCacheKey]int{}}
-
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-		part1 += part1Searcher.GetCodeComplexity(line)
-		part2 += part2Searcher.GetCodeComplexity(line)
+		part1 += getCodeComplexity(line, 2)
+		part2 += getCodeComplexity(line, 25)
 	}
-
-	// 162740
 	fmt.Println(part1)
-	// 6153778
 	fmt.Println(part2)
 }
